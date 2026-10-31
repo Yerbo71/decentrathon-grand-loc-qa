@@ -185,7 +185,7 @@ CLAUDE.md       контекст для Claude Code: особенности да
 - [x] Тесты: `pytest` (15 тестов на синтетических ARB)
 - [x] Бенчмарк decision-моделей на размеченной выборке: `python tools/decisions_bench.py` (результаты в docs/SIMULATION.md)
 - [x] `locqa suggest / review / apply`: очередь исправлений, страница ревью носителя, сборка `intl_kk_fixed.arb`
-- [x] GitHub Action (`action.yml`, пример `docs/github-workflows/arb-qa.yml`) и анализ узбекского (профиль `uz`)
+- [x] GitHub Action (`action.yml`, пример `.github/workflows/arb-qa.yml`) и анализ узбекского (профиль `uz`)
 - [ ] Страница ревью для носителя → `decisions.jsonl` → `locqa apply` → `intl_kk_fixed.arb`
 - [ ] `glossary.csv`
 - [ ] Синтетический инжектор ошибок по всему файлу (recall по типам)
