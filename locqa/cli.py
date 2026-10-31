@@ -67,7 +67,7 @@ def check(
     glossary: Optional[Path] = typer.Option(None, help="glossary.csv: ru,kk,en,forbidden_kk,comment"),
     out: Path = typer.Option(Path("report.json"), help="Findings in the schema from the task"),
     html: Optional[Path] = typer.Option(None, help="Human-readable report (default: next to --out)"),
-    ref: list[Path] = typer.Option([], help="Other translations used as extra evidence (repeatable): --ref intl_en.arb"),
+    ref: list[Path] = typer.Option([], help="Other translations used as extra evidence (repeatable); default: other *.arb next to --target"),
     profile: Optional[str] = typer.Option(None, help="Language profile (kk, uz, ...); default: target @@locale"),
     use_llm: bool = typer.Option(False, "--llm", help="LLM review of meaning/terms via OpenRouter (needs OPENROUTER_API_KEY)"),
     decide_model: Optional[str] = typer.Option(None, "--decide", help="Decision model that verifies findings, e.g. typesafe/jev-1.14"),
@@ -77,7 +77,17 @@ def check(
 ):
     """Check a translation against the source and write report.json + report.html."""
     src, tgt = arb.load(source), arb.load(target)
-    refs = {(r_ := arb.load(p)).locale or p.stem: r_ for p in ref}
+    if not ref:  # no --ref given: use the other ARB files next to the target (intl_en.arb, intl_uz.arb, ...)
+        ref = [p for p in sorted(target.resolve().parent.glob("*.arb"))
+               if p.resolve() not in (source.resolve(), target.resolve()) and not p.name.startswith("._")]
+    refs = {}
+    for p in ref:
+        try:
+            r_ = arb.load(p)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if r_.locale and r_.locale not in (src.locale, tgt.locale):
+            refs[r_.locale] = r_
     prof = profiles.get(profile or tgt.locale)
     rows = load_glossary(glossary)
     ctx = rules.Context(src, tgt, prof, refs)

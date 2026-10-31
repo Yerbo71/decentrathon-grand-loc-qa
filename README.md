@@ -52,6 +52,10 @@ python -m locqa.cli check ... --llm --decide typesafe/jev-1.14
 | `source_notes.json` | Ошибки в русском исходнике, замеченные по ходу проверки (для студии) |
 | `summary.json` | Сводка, структура файла (дубли ключей, лишние ключи, ключи, которые не примет gen-l10n), стоимость LLM |
 
+Без `--ref` инструмент сам берёт остальные `*.arb` из папки `--target` (например, `intl_en.arb`, `intl_uz.arb`)
+как дополнительные доказательства, поэтому команда ровно из ТЗ — `locqa check --source intl_ru.arb --target intl_kk.arb
+--glossary glossary.csv --out report.json` — даёт тот же результат.
+
 `--fail-on high` возвращает код 1, если есть high-находки: так проверку можно поставить в CI.
 
 ### Остальные команды
