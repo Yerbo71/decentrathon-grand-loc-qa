@@ -1,0 +1,5 @@
+lib/l10n/
+.dart_tool/
+.flutter-plugins*
+pubspec.lock
+build/

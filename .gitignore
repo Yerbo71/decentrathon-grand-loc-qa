@@ -1,0 +1,14 @@
+# Данные организаторов публиковать нельзя
+grand-loc-qa-handout-*/
+*.docx
+scratch/
+out/
+.llm_cache/
+.env
+
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+.idea/

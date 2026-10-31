@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>locqa — ревью носителя</title>
+<style>
+  :root { --bg:#fafaf9; --card:#fff; --ink:#1c1917; --mute:#78716c; --line:#e7e5e4; --high:#b91c1c; --medium:#b45309; --ok:#15803d; --warn:#b45309 }
+  * { box-sizing:border-box } body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink) }
+  header { display:flex; gap:16px; align-items:center; padding:12px 24px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0 }
+  header input { padding:6px 8px; border:1px solid var(--line); border-radius:6px }
+  .progress { flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden } .progress div { height:100%; background:var(--ok) }
+  main { max-width:980px; margin:20px auto; padding:0 20px }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px }
+  .top { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-bottom:10px }
+  code { background:var(--bg); padding:1px 6px; border-radius:4px }
+  .sev { font-weight:700; text-transform:uppercase; font-size:12px } .sev.high { color:var(--high) } .sev.medium { color:var(--medium) }
+  .issue { background:var(--bg); border-radius:6px; padding:8px 10px; margin:6px 0; font-size:14px }
+  .grid { display:grid; grid-template-columns:120px 1fr; gap:6px 14px; margin:14px 0 }
+  .grid > div:nth-child(odd) { color:var(--mute) } .txt { white-space:pre-wrap }
+  textarea { width:100%; min-height:80px; font:16px/1.5 inherit; padding:10px; border:2px solid var(--ok); border-radius:8px }
+  .warn { color:var(--warn); font-size:14px; min-height:20px }
+  .btns { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap }
+  button { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); cursor:pointer }
+  button.accept { background:var(--ok); color:#fff; border-color:var(--ok) } button.reject { color:var(--high) }
+  kbd { font-size:12px; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 4px; margin-left:4px; color:var(--mute) }
+  .done { color:var(--mute) } .tag { font-size:12px; padding:2px 8px; border-radius:999px; background:#fef3c7 }
+  nav { display:flex; gap:8px; margin:12px 0; align-items:center; flex-wrap:wrap }
+</style>
+</head>
+<body>
+<header>
+  <b>Ревью kk</b>
+  <label>Проверяющий: <input id="who" placeholder="имя" size="12"></label>
+  <div class="progress"><div id="bar"></div></div>
+  <span id="count"></span>
+  <button id="export">Скачать decisions.jsonl</button>
+</header>
+<main>
+  <nav>
+    <button id="prev">← Назад <kbd>←</kbd></button><button id="next">Вперёд <kbd>→</kbd></button>
+    <button id="todo">К первой непросмотренной</button>
+    <span class="mute">Горячие клавиши: <kbd>Ctrl+Enter</kbd> принять текст из поля · <kbd>Esc</kbd> отклонить · <kbd>Alt+K</kbd> оставить как есть</span>
+  </nav>
+  <div id="card" class="card"></div>
+</main>
+<script>
+const QUEUE = {{ queue_json | safe }};
+const STORE = "locqa-review-" + {{ queue_id | tojson }};
+let state = JSON.parse(localStorage.getItem(STORE) || "{}");
+let i = 0;
+const who = document.getElementById("who");
+who.value = localStorage.getItem("locqa-reviewer") || "";
+who.oninput = () => localStorage.setItem("locqa-reviewer", who.value);
+
+const esc = s => (s ?? "").toString().replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const tokens = s => ((s || "").match(/\{[^{}]*\}|%(?:\d+\$)?[sdif@]|<\/?[a-zA-Z][\w-]*>/g) || []).sort().join(" ");
+
+function render() {
+  const c = QUEUE[i], d = state[c.key];
+  const proposal = d ? d.final : (c.suggestion ?? c.kk ?? "");
+  document.getElementById("card").innerHTML = `
+    <div class="top"><code>${esc(c.key)}</code><span class="sev ${c.severity}">${c.severity}</span>
+      <span class="mute">${esc(c.section || "")} · ${i + 1} / ${QUEUE.length}</span>
+      ${c.needs_context ? '<span class="tag">нужен контекст соседних строк</span>' : ""}
+      ${c.needs_code ? '<span class="tag">нужна обработка в коде</span>' : ""}
+      ${c.prefer != null ? `<span class="mute">P(лучше) = ${c.prefer}</span>` : ""}
+      ${d ? `<span class="done">решение: ${d.decision}</span>` : ""}</div>
+    ${c.issues.map(x => `<div class="issue"><b>${esc(x.type)}</b> · ${esc(x.evidence)}</div>`).join("")}
+    <div class="grid">
+      <div>ru</div><div class="txt">${esc(c.ru)}</div>
+      ${c.en ? `<div>en</div><div class="txt">${esc(c.en)}</div>` : ""}
+      ${c.uz ? `<div>uz</div><div class="txt">${esc(c.uz)}</div>` : ""}
+      <div>kk сейчас</div><div class="txt">${c.kk ? esc(c.kk) : "— пусто —"}</div>
+      ${c.note ? `<div>заметка</div><div>${esc(c.note)}</div>` : ""}
+      ${c.rejected_suggestion ? `<div>отклонено</div><div class="txt mute">${esc(c.rejected_suggestion)} — ${esc(c.gate_problems.join("; "))}</div>` : ""}
+    </div>
+    <textarea id="final">${esc(proposal)}</textarea>
+    <div class="warn" id="warn"></div>
+    <div class="btns">
+      <button class="accept" id="ok">Принять <kbd>Ctrl+Enter</kbd></button>
+      <button id="keep">Оставить как есть <kbd>Alt+K</kbd></button>
+      <button class="reject" id="no">Отклонить находку <kbd>Esc</kbd></button>
+    </div>`;
+  const ta = document.getElementById("final");
+  const check = () => {
+    const w = [];
+    if (tokens(ta.value) !== tokens(c.ru)) w.push("плейсхолдеры/теги не совпадают с ru: " + tokens(c.ru));
+    if (ta.value.trim() === (c.ru || "").trim() && /[а-яё]{3}/i.test(c.ru)) w.push("текст совпадает с русским");
+    document.getElementById("warn").textContent = w.join(" · ");
+  };
+  ta.oninput = check; check(); ta.focus();
+  document.getElementById("ok").onclick = () => decide(ta.value === c.kk ? "keep" : (ta.value === c.suggestion ? "accept" : "edit"), ta.value);
+  document.getElementById("keep").onclick = () => decide("keep", c.kk);
+  document.getElementById("no").onclick = () => decide("reject", null);
+  const done = Object.keys(state).length;
+  document.getElementById("count").textContent = `${done} / ${QUEUE.length}`;
+  document.getElementById("bar").style.width = (100 * done / QUEUE.length) + "%";
+}
+
+function decide(decision, final) {
+  const c = QUEUE[i];
+  if (decision !== "reject" && decision !== "keep" && tokens(final) !== tokens(c.ru) && !confirm("Плейсхолдеры не совпадают с ru. Сохранить всё равно?")) return;
+  state[c.key] = { key: c.key, decision, final, original: c.kk, issues: c.issues.map(x => x.type),
+                   reviewer: who.value, ts: new Date().toISOString() };
+  localStorage.setItem(STORE, JSON.stringify(state));
+  if (i < QUEUE.length - 1) i++;
+  render();
+}
+
+document.getElementById("prev").onclick = () => { if (i > 0) { i--; render(); } };
+document.getElementById("next").onclick = () => { if (i < QUEUE.length - 1) { i++; render(); } };
+document.getElementById("todo").onclick = () => { const j = QUEUE.findIndex(c => !state[c.key]); if (j >= 0) { i = j; render(); } };
+document.getElementById("export").onclick = () => {
+  const blob = new Blob([Object.values(state).map(x => JSON.stringify(x)).join("\n") + "\n"], { type: "application/jsonl" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "decisions.jsonl"; a.click();
+};
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); document.getElementById("ok").click(); }
+  else if (e.key === "Escape") { e.preventDefault(); document.getElementById("no").click(); }
+  else if (e.altKey && (e.key === "k" || e.key === "л")) { e.preventDefault(); document.getElementById("keep").click(); }
+  else if (e.target.tagName !== "TEXTAREA" && e.key === "ArrowRight") document.getElementById("next").click();
+  else if (e.target.tagName !== "TEXTAREA" && e.key === "ArrowLeft") document.getElementById("prev").click();
+});
+const first = QUEUE.findIndex(c => !state[c.key]); i = first >= 0 ? first : 0;
+render();
+</script>
+</body>
+</html>

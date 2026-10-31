@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>locqa — {{ s.target }}</title>
+<style>
+  :root { --bg:#fafaf9; --card:#fff; --ink:#1c1917; --mute:#78716c; --line:#e7e5e4;
+          --high:#b91c1c; --medium:#b45309; --low:#57534e; --ok:#15803d; }
+  * { box-sizing:border-box } body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink) }
+  header { padding:20px 28px; background:var(--card); border-bottom:1px solid var(--line) }
+  h1 { margin:0 0 4px; font-size:20px } .mute { color:var(--mute) }
+  .tiles { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px }
+  .tile { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:120px }
+  .tile b { display:block; font-size:22px }
+  main { padding:20px 28px; max-width:1200px }
+  .bar { position:sticky; top:0; background:var(--bg); padding:10px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:center; z-index:2 }
+  .chip { border:1px solid var(--line); background:var(--card); border-radius:999px; padding:4px 10px; cursor:pointer; user-select:none }
+  .chip.on { background:var(--ink); color:#fff; border-color:var(--ink) }
+  input[type=search] { flex:1; min-width:220px; padding:7px 10px; border:1px solid var(--line); border-radius:6px }
+  .f { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--low); border-radius:8px; padding:12px 14px; margin:10px 0 }
+  .f.high { border-left-color:var(--high) } .f.medium { border-left-color:var(--medium) }
+  .f h3 { margin:0 0 8px; font-size:14px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap }
+  .f code { background:var(--bg); padding:1px 5px; border-radius:4px }
+  .sev { font-size:12px; font-weight:600; text-transform:uppercase } .sev.high { color:var(--high) } .sev.medium { color:var(--medium) }
+  .grid { display:grid; grid-template-columns:110px 1fr; gap:4px 12px }
+  .grid div:nth-child(odd) { color:var(--mute) } .txt { white-space:pre-wrap }
+  .sug { color:var(--ok) } .ev { margin-top:8px }
+  details { margin-top:24px } summary { cursor:pointer; font-weight:600 }
+  table { border-collapse:collapse; width:100% } td,th { border-bottom:1px solid var(--line); padding:6px; text-align:left; vertical-align:top }
+</style>
+</head>
+<body>
+<header>
+  <h1>Проверка локализации: {{ s.target }}</h1>
+  <div class="mute">исходник {{ s.source }} · профиль {{ s.profile }} · строк {{ s.strings_source }} → {{ s.strings_target }}
+    {% if s.llm.judge %}· LLM-проверка включена{% endif %}{% if s.llm.decide_model %} · верификатор {{ s.llm.decide_model }}{% endif %}
+    {% if s.llm.usage %}· стоимость ${{ s.llm.usage.cost_usd }}{% endif %}</div>
+  <div class="tiles">
+    <div class="tile"><b>{{ s.findings }}</b>находок</div>
+    <div class="tile"><b style="color:var(--high)">{{ sev.get('high', 0) }}</b>high</div>
+    <div class="tile"><b style="color:var(--medium)">{{ sev.get('medium', 0) }}</b>medium</div>
+    <div class="tile"><b>{{ s.qa_queue }}</b>в очереди QA (неуверенные)</div>
+    <div class="tile"><b>{{ s.source_notes }}</b>замечаний к исходнику</div>
+  </div>
+</header>
+<main>
+  <div class="bar">
+    <span class="chip on" data-sev="all">все</span>
+    <span class="chip" data-sev="high">high</span><span class="chip" data-sev="medium">medium</span><span class="chip" data-sev="low">low</span>
+    <span class="mute">|</span>
+    <span class="chip on" data-type="all">все типы</span>
+    {% for t, n in types %}<span class="chip" data-type="{{ t }}">{{ type_ru.get(t, t) }} · {{ n }}</span>{% endfor %}
+    <input type="search" id="q" placeholder="поиск по ключу или тексту">
+  </div>
+
+  {% for f in findings %}
+  <div class="f {{ f.severity }}" data-sev="{{ f.severity }}" data-type="{{ f.issue_type }}">
+    <h3><code>{{ f.key }}</code><span class="sev {{ f.severity }}">{{ f.severity }}</span>
+      <span>{{ type_ru.get(f.issue_type, f.issue_type) }} <span class="mute">({{ f.issue_type }})</span></span>
+      <span class="mute">уверенность {{ '%.2f'|format(f.confidence) }}</span></h3>
+    <div class="grid">
+      <div>исходник</div><div class="txt">{{ f.source }}</div>
+      <div>сейчас</div><div class="txt">{{ f.target if f.target else '— пусто —' }}</div>
+      {% if f.suggestion %}<div>предлагаем</div><div class="txt sug">{{ f.suggestion }}</div>{% endif %}
+    </div>
+    <div class="ev">{{ f.evidence }}</div>
+  </div>
+  {% endfor %}
+
+  {% if queue %}
+  <details><summary>Очередь QA: {{ queue|length }} неуверенных находок (в report.json не попали)</summary>
+    <table><tr><th>ключ</th><th>тип</th><th>уверенность</th><th>сейчас</th><th>почему</th></tr>
+    {% for f in queue %}<tr><td><code>{{ f.key }}</code></td><td>{{ f.issue_type }}</td><td>{{ '%.2f'|format(f.confidence) }}</td>
+      <td class="txt">{{ f.target }}</td><td>{{ f.evidence }}</td></tr>{% endfor %}</table>
+  </details>
+  {% endif %}
+
+  {% if notes %}
+  <details><summary>Замечания к исходному файлу: {{ notes|length }}</summary>
+    <table>{% for n in notes %}<tr><td><code>{{ n.key }}</code></td><td>{{ n.note }}</td></tr>{% endfor %}</table>
+  </details>
+  {% endif %}
+
+  <details><summary>Структура файла</summary>
+    <table>
+      <tr><td>Дубли ключей в переводе</td><td>{{ s.structure.duplicate_keys_target|length }}, из них с разными значениями:
+        {{ s.structure.duplicate_keys_with_different_values|join(', ') or 'нет' }}</td></tr>
+      <tr><td>Лишние ключи в переводе</td><td>{{ s.structure.extra_keys_in_target|join(', ') or 'нет' }}</td></tr>
+      <tr><td>Ключи, которые не примет flutter gen-l10n</td><td>{{ s.structure.keys_invalid_for_gen_l10n|join(', ') or 'нет' }}</td></tr>
+    </table>
+  </details>
+</main>
+<script>
+  const st = { sev: "all", type: "all", q: "" };
+  function apply() {
+    document.querySelectorAll(".f").forEach(el => {
+      const ok = (st.sev === "all" || el.dataset.sev === st.sev) && (st.type === "all" || el.dataset.type === st.type)
+        && (!st.q || el.textContent.toLowerCase().includes(st.q));
+      el.style.display = ok ? "" : "none";
+    });
+  }
+  document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+    const dim = c.dataset.sev ? "sev" : "type";
+    document.querySelectorAll(`.chip[data-${dim}]`).forEach(x => x.classList.remove("on"));
+    c.classList.add("on"); st[dim] = c.dataset[dim]; apply();
+  });
+  document.getElementById("q").oninput = e => { st.q = e.target.value.toLowerCase(); apply(); };
+</script>
+</body>
+</html>

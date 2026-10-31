@@ -1,0 +1,13 @@
+name: l10n_check
+description: Minimal project to validate ARB files with flutter gen-l10n.
+publish_to: none
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+flutter:
+  generate: true
