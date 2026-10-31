@@ -186,8 +186,8 @@ CLAUDE.md       контекст для Claude Code: особенности да
 - [x] Бенчмарк decision-моделей на размеченной выборке: `python tools/decisions_bench.py` (результаты в docs/SIMULATION.md)
 - [x] `locqa suggest / review / apply`: очередь исправлений, страница ревью носителя, сборка `intl_kk_fixed.arb`
 - [x] GitHub Action (`action.yml`, пример `.github/workflows/arb-qa.yml`) и анализ узбекского (профиль `uz`)
-- [ ] Страница ревью для носителя → `decisions.jsonl` → `locqa apply` → `intl_kk_fixed.arb`
-- [ ] `glossary.csv`
+- [x] Страница ревью для носителя → `decisions.jsonl` → `locqa apply` → `intl_kk_fixed.arb` (559 строк проверены носителем)
+- [x] `glossary.csv`
 - [ ] Синтетический инжектор ошибок по всему файлу (recall по типам)
 - [x] Бонус: переформулировка строк с аффиксом после плейсхолдера (fix v2, `{price}-ге сатып алу` → `Сатып алу: {price}`)
 - [ ] Бонус: транслитерация kk в латиницу
