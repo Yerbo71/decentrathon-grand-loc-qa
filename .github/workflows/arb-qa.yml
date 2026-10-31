@@ -19,4 +19,5 @@ jobs:
           source: examples/l10n/intl_ru.arb
           targets: ${{ steps.arb.outputs.targets }}
           glossary: glossary.csv
-          fail-on: high
+          # demo on synthetic examples with seeded errors: report only; in a game repo use fail-on: high
+          fail-on: ""
