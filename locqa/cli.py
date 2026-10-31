@@ -288,6 +288,36 @@ def apply_cmd(
 
 
 @app.command()
+def translit(
+    source: Path = typer.Option(..., help="Source ARB (for UI length limits)"),
+    target: Path = typer.Option(..., help="Kazakh Cyrillic ARB, e.g. intl_kk_fixed.arb"),
+    ref: list[Path] = typer.Option([], help="Reference translations for length limits (repeatable)"),
+    out: Path = typer.Option(Path("out/kk_latn/intl_kk_Latn.arb"), help="Latin-script ARB"),
+    locale: str = typer.Option("kk_Latn", help="@@locale of the written file"),
+):
+    """Kazakh Cyrillic → official Latin alphabet (2021) with length and font-glyph checks."""
+    from . import translit as tl
+    src, tgt = arb.load(source), arb.load(target)
+    refs = {(r_ := arb.load(p)).locale or p.stem: r_ for p in ref}
+    latin, issues, summary = tl.check(src, tgt, refs)
+    entries, seen = [], set()
+    for e in tgt.entries:
+        if e.key == "@@locale":
+            entries.append((e.key, locale))
+        elif e.key == "@@comment" or e.key.startswith("@"):
+            entries.append((e.key, e.value))
+        elif e.key not in seen:
+            seen.add(e.key)
+            entries.append((e.key, latin.get(e.key, e.value)))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(arb.dumps(entries), encoding="utf-8")
+    rep = out.with_name("translit_report.json")
+    rep.write_text(json.dumps({"summary": summary, "issues": issues}, ensure_ascii=False, indent=1), encoding="utf-8")
+    typer.echo(f"{summary['strings']} strings → {out}; length issues: {summary['length_issues']}; "
+               f"font must contain: {summary['font_glyphs_needed']}  ({rep})")
+
+
+@app.command()
 def version():
     """Print version."""
     from importlib.metadata import version as v

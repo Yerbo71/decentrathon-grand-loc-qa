@@ -250,3 +250,34 @@ def test_latin_target_profile_uzbek():
     t = by_type(rules.run(rules.Context(ru, uz, profiles.UZ, {"en": en, "kk": kk})))
     assert "b" in t.get("orthography", set())          # Cyrillic suffix inside a Latin word
     assert not t.get("wrong_language")                 # «Golem» == en and uz == kk are not evidence for a Latin target
+
+
+def test_translit_official_2021_alphabet():
+    from locqa.translit import to_latin
+    assert to_latin("Қайта") == "Qaita"            # й → i (merged with и in the 2021 alphabet)
+    assert to_latin("Әкімші") == "Äkımşı"          # і → dotless ı, ш → ş
+    assert to_latin("ДИСКТЕРДІҢ") == "DİSKTERDIÑ"  # и → İ, і → I, ң → Ñ
+    assert to_latin("ЦЕХ") == "TSEH" and to_latin("Цех") == "Tseh"   # loanword digraph follows word case
+    assert to_latin("{price} бағасы <g>%s</g>") == "{price} bağasy <g>%s</g>"   # placeholders untouched
+
+
+def test_translit_command_writes_valid_arb(tmp_path):
+    from typer.testing import CliRunner
+    from locqa.cli import app
+    (tmp_path / "ru.arb").write_text(RU, encoding="utf-8")
+    (tmp_path / "kk.arb").write_text(KK, encoding="utf-8")
+    out = tmp_path / "kk_Latn.arb"
+    r = CliRunner().invoke(app, ["translit", "--source", str(tmp_path / "ru.arb"), "--target", str(tmp_path / "kk.arb"),
+                                 "--out", str(out)])
+    assert r.exit_code == 0, r.output
+    lat = arb.parse(out.read_text(encoding="utf-8"))
+    assert lat.locale == "kk_Latn" and lat.strings["buyButton"] == "Satyp alu"
+    assert icu.tokens(lat.strings["buyFor"]) == icu.tokens("{price}")
+
+
+def test_orthography_n_vs_ng_affix_is_grammar_not_typo():
+    ru = arb.parse('{"@@locale":"ru","a":"Выберите наличие брони","b":"Твоё наличие","c":"Выбор карты","d":"Выбор"}')
+    kk = arb.parse('{"@@locale":"kk","a":"Сауыттың болуын таңдаңыз","b":"Сенің болуың","c":"Карта тандау","d":"таңдау"}')
+    keys = {f.key for f in rules.check_orthography(rules.Context(ru, kk, profiles.KK, {}))}
+    assert "a" not in keys and "b" not in keys   # -ын / -ың: two correct affixes
+    assert "c" in keys                            # тандау: ң inside the stem is a typo

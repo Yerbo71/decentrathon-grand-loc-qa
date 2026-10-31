@@ -194,9 +194,14 @@ def check_orthography(ctx: Context):
             if set(lw) & specific or freq[lw] > 2 or lw in src_vocab or len(lw) < 3:
                 continue
             alts = [(a, c) for a, c in by_fold[lw] if a != lw and set(a) & specific]
+            # н/ң in the final affix is grammar, not spelling: «болуын» (its) vs «болуың» (your);
+            # inside the stem it is a typo: «тандау» → «таңдау»
+            alts = [(a, ac) for a, ac in alts
+                    if any(x != y and ({x, y} != {"н", "ң"} or i < len(lw) - 2) for i, (x, y) in enumerate(zip(a, lw)))]
             if alts:
                 best, c = max(alts, key=lambda x: x[1])
-                if c >= 3 * freq[lw] and c >= 3:
+                # frequent correct form, or (for longer words, where accidental look-alikes are rare) any correct form
+                if (c >= 3 * freq[lw] and c >= 3) or (freq[lw] == 1 and len(lw) >= 5 and c >= 1):
                     notes.append(f"«{w}» встречается {freq[lw]} раз, а «{best}» — {c} раз: казахская буква заменена русской")
                     suggestion = re.sub(rf"\b{re.escape(w)}\b", _match_case(w, best), suggestion)
         if notes:

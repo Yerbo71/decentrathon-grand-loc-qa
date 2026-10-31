@@ -54,6 +54,16 @@ python -m locqa.cli check ... --llm --decide typesafe/jev-1.14
 
 `--fail-on high` возвращает код 1, если есть high-находки: так проверку можно поставить в CI.
 
+### Остальные команды
+
+```bash
+python -m locqa.cli suggest --report out/kk/report.json --source ... --target ... --prefer nace-ai/drex-max  # очередь ревью
+python -m locqa.cli review  --queue out/kk/review_queue.json --out out/kk/review.html                      # страница для носителя
+python -m locqa.cli apply   --source ... --target ... --decisions decisions.jsonl --reviewer NAME --report out/kk/report.json
+python -m locqa.cli translit --source ... --target out/kk/intl_kk_fixed.arb --out out/kk_latn/intl_kk_Latn.arb  # латиница 2021
+python tools/inject.py --source ... --target ... --ref intl_uz.arb   # recall правил по типам на подложенных ошибках
+```
+
 ### Данные
 
 **Данных в репозитории нет и не должно быть** (условие организаторов). Возьмите архив handout у команды
@@ -188,6 +198,6 @@ CLAUDE.md       контекст для Claude Code: особенности да
 - [x] GitHub Action (`action.yml`, пример `.github/workflows/arb-qa.yml`) и анализ узбекского (профиль `uz`)
 - [x] Страница ревью для носителя → `decisions.jsonl` → `locqa apply` → `intl_kk_fixed.arb` (559 строк проверены носителем)
 - [x] `glossary.csv`
-- [ ] Синтетический инжектор ошибок по всему файлу (recall по типам)
+- [x] Синтетический инжектор ошибок по всему файлу (recall по типам): `tools/inject.py`
 - [x] Бонус: переформулировка строк с аффиксом после плейсхолдера (fix v2, `{price}-ге сатып алу` → `Сатып алу: {price}`)
-- [ ] Бонус: транслитерация kk в латиницу
+- [x] Бонус: транслитерация kk в латиницу (`locqa translit`, алфавит 2021, проверка длины и глифов шрифта)
