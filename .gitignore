@@ -12,3 +12,8 @@ __pycache__/
 .pytest_cache/
 .venv/
 .idea/
+
+# derived from the organizers' data: submit separately, never commit
+decisions*.jsonl
+submission/
+*.zip

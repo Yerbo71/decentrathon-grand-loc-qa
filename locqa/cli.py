@@ -260,14 +260,29 @@ def apply_cmd(
     target: Path = typer.Option(..., help="Original translation ARB"),
     decisions: Path = typer.Option(..., help="decisions.jsonl exported from the review page"),
     out: Path = typer.Option(Path("out/kk/intl_kk_fixed.arb"), help="Corrected ARB"),
+    reviewer: Optional[str] = typer.Option(None, help="Reviewer name for decisions that have none"),
+    report_path: Optional[Path] = typer.Option(None, "--report", help="report.json to mark reviewed findings in (reviewed_by_human)"),
 ):
     """Write the corrected ARB with only human-approved changes, each flagged with x-locqa.reviewed_by_human."""
     from . import apply as ap
     src, tgt = arb.load(source), arb.load(target)
-    entries, stats = ap.apply(src, tgt, ap.load_decisions(decisions))
+    dec = ap.load_decisions(decisions)
+    if reviewer:
+        for d in dec.values():
+            d["reviewer"] = d.get("reviewer") or reviewer
+    entries, stats = ap.apply(src, tgt, dec)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(arb.dumps(entries), encoding="utf-8")
     out.with_suffix(".apply.json").write_text(json.dumps(stats, ensure_ascii=False, indent=1), encoding="utf-8")
+    if report_path:
+        rep = json.loads(report_path.read_text(encoding="utf-8"))
+        for f in rep:
+            d = dec.get(f["key"])
+            f["reviewed_by_human"] = bool(d)
+            if d and d.get("decision") in ("accept", "edit") and isinstance(d.get("final"), str):
+                f["suggestion"] = d["final"]  # the reviewed text, not the model's draft
+        report_path.write_text(json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8")
+        typer.echo(f"{sum(f['reviewed_by_human'] for f in rep)}/{len(rep)} findings marked reviewed in {report_path}")
     typer.echo(f"{len(stats['changed'])} strings changed → {out}; skipped {len(stats['skipped'])}; "
                f"duplicate keys collapsed: {len(stats['duplicates_collapsed'])}")
 
