@@ -240,3 +240,13 @@ def test_suggest_review_apply_roundtrip(tmp_path):
     assert out.strings["rare"].startswith("Сирек режимін")     # rejected -> unchanged
     assert not out.duplicates                                  # duplicate «cancel» collapsed
     assert "x-locqa" not in out.meta.get("profile", {})        # untouched strings carry no flag
+
+
+def test_latin_target_profile_uzbek():
+    ru = arb.parse('{"@@locale":"ru","a":"Голем","b":"Выйти с арены","c":"Итого к оплате:"}')
+    uz = arb.parse('{"@@locale":"uz","a":"Golem","b":"Arenaдан chiqish","c":"Jami to‘lov:"}')
+    en = arb.parse('{"@@locale":"en","a":"Golem","b":"Leave arena","c":"Total:"}')
+    kk = arb.parse('{"@@locale":"kk","a":"Голем","b":"Аренадан шығу","c":"Jami to‘lov:"}')  # kk carries the Uzbek text
+    t = by_type(rules.run(rules.Context(ru, uz, profiles.UZ, {"en": en, "kk": kk})))
+    assert "b" in t.get("orthography", set())          # Cyrillic suffix inside a Latin word
+    assert not t.get("wrong_language")                 # «Golem» == en and uz == kk are not evidence for a Latin target

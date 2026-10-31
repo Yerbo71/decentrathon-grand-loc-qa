@@ -73,6 +73,7 @@ def check(
     decide_model: Optional[str] = typer.Option(None, "--decide", help="Decision model that verifies findings, e.g. typesafe/jev-1.14"),
     min_confidence: float = typer.Option(0.6, help="Findings below this go to qa_queue.json instead of the report"),
     fail_on: Optional[str] = typer.Option(None, help="Exit 1 if there are findings of this severity or worse (high|medium|low)"),
+    md_summary: Optional[Path] = typer.Option(None, help="Append a Markdown summary (e.g. $GITHUB_STEP_SUMMARY)"),
 ):
     """Check a translation against the source and write report.json + report.html."""
     src, tgt = arb.load(source), arb.load(target)
@@ -125,6 +126,8 @@ def check(
     html_path = html or out.with_suffix(".html")
     report.write_html(html_path, report_f, queue, source_notes, summary)
 
+    if md_summary:
+        _write_md(md_summary, target, report_f, queue, summary)
     typer.echo(f"{len(report_f)} findings → {out}  |  QA queue: {len(queue)} → {qa_path}  |  HTML: {html_path}")
     typer.echo("  " + ", ".join(f"{t}: {n}" for t, n in Counter(f.issue_type for f in report_f).most_common()))
     if client:
@@ -132,6 +135,26 @@ def check(
         typer.echo(f"  LLM: {u['calls']} calls ({u['cached_calls']} cached), ${u['cost_usd']}")
     if fail_on and any(SEV_RANK[f.severity] <= SEV_RANK[fail_on] for f in report_f):
         raise typer.Exit(1)
+
+
+def _write_md(path: Path, target: Path, findings: list[Finding], queue: list[Finding], summary: dict) -> None:
+    sev = Counter(f.severity for f in findings)
+    lines = [f"### locqa: `{target.name}` — {len(findings)} findings "
+             f"(high {sev.get('high', 0)}, medium {sev.get('medium', 0)}, low {sev.get('low', 0)}; QA queue {len(queue)})", "",
+             "| type | count |", "|---|---|"]
+    lines += [f"| {t} | {n} |" for t, n in Counter(f.issue_type for f in findings).most_common()]
+    top = [f for f in findings if f.severity == "high"][:20]
+    if top:
+        cell = lambda x: (x or "").replace("|", "\\|").replace("\n", " ")[:80]
+        lines += ["", "<details><summary>High severity (first 20)</summary>", "", "| key | type | target | evidence |", "|---|---|---|---|"]
+        lines += [f"| `{f.key}` | {f.issue_type} | {cell(f.target)} | {cell(f.evidence)} |" for f in top]
+        lines += ["", "</details>"]
+    st = summary["structure"]
+    if st["keys_invalid_for_gen_l10n"] or st["duplicate_keys_with_different_values"]:
+        lines += ["", f"Structure: duplicate keys with different values: {len(st['duplicate_keys_with_different_values'])}; "
+                      f"keys gen-l10n rejects: {', '.join(st['keys_invalid_for_gen_l10n']) or 'none'}"]
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n\n")
 
 
 def _verify(client, model: str, findings: list[Finding], src, tgt, refs):

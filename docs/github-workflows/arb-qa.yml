@@ -1,0 +1,22 @@
+# Runs locqa on every pull request that changes ARB files.
+# In a game repository replace `uses: ./` with `uses: Yerbo71/decentrathon-grand-loc-qa@main`
+# and point `source` / the glob at lib/l10n.
+name: ARB localization QA
+on:
+  pull_request:
+    paths: ["**/*.arb", "glossary.csv"]
+  workflow_dispatch:
+jobs:
+  locqa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: arb
+        name: Collect translation files
+        run: echo "targets=$(ls examples/l10n/intl_*.arb | grep -v intl_ru.arb | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+      - uses: ./
+        with:
+          source: examples/l10n/intl_ru.arb
+          targets: ${{ steps.arb.outputs.targets }}
+          glossary: glossary.csv
+          fail-on: high

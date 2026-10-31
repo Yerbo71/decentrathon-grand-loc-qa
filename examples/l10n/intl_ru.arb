@@ -1,0 +1,13 @@
+{
+  "@@locale": "ru",
+  "@@comment": "SHOP",
+  "shopBuyButton": "Купить",
+  "shopBuyFor": "Купить за {price}",
+  "shopConfirm": "Вы действительно хотите купить этот предмет?",
+  "shopPoints": "{points} ОЧКОВ",
+  "@@comment": "FAMILY",
+  "familyBalance": "Баланс семьи",
+  "familyRare": "Редкий",
+  "familyGift": "Подарок для {name}",
+  "familyProfile": "Профиль"
+}

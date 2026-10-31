@@ -1,0 +1,57 @@
+name: locqa ARB check
+description: Localization QA for Flutter ARB files (placeholders, untranslated, wrong language, Kazakh letters, affixes after placeholders, button length, glossary)
+branding: { icon: check-circle, color: green }
+inputs:
+  source:
+    description: Template ARB (source language), e.g. lib/l10n/intl_ru.arb
+    required: true
+  targets:
+    description: Space-separated translation ARB files to check
+    required: true
+  glossary:
+    description: Optional glossary.csv (ru,kk,en,forbidden_kk,comment)
+    required: false
+    default: ""
+  refs:
+    description: Optional space-separated reference translations used as extra evidence (e.g. intl_en.arb)
+    required: false
+    default: ""
+  fail-on:
+    description: Fail the job if there are findings of this severity or worse (high|medium|low); empty = never fail
+    required: false
+    default: high
+  python-version:
+    required: false
+    default: "3.11"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with: { python-version: "${{ inputs.python-version }}" }
+    - name: Install locqa
+      shell: bash
+      run: pip install -q "${{ github.action_path }}"
+    - name: Run locqa check
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.source }}
+        TARGETS: ${{ inputs.targets }}
+        GLOSSARY: ${{ inputs.glossary }}
+        REFS: ${{ inputs.refs }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        status=0
+        for t in $TARGETS; do
+          [ "$t" = "$SOURCE" ] && continue
+          name=$(basename "$t" .arb)
+          args=(check --source "$SOURCE" --target "$t" --out "locqa-report/$name/report.json" --md-summary "$GITHUB_STEP_SUMMARY")
+          [ -n "$GLOSSARY" ] && args+=(--glossary "$GLOSSARY")
+          for r in $REFS; do [ "$r" != "$t" ] && args+=(--ref "$r"); done
+          [ -n "$FAIL_ON" ] && args+=(--fail-on "$FAIL_ON")
+          python -m locqa.cli "${args[@]}" || status=1
+        done
+        exit $status
+    - name: Upload reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with: { name: locqa-report, path: locqa-report }

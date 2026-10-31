@@ -1,0 +1,13 @@
+{
+  "@@locale": "kk",
+  "@@comment": "SHOP",
+  "shopBuyButton": "Сатып алу",
+  "shopBuyFor": "{price}-ге сатып алу",
+  "shopConfirm": "Вы действительно хотите купить этот предмет?",
+  "shopPoints": "ҰПАЙ",
+  "@@comment": "FAMILY",
+  "familyBalance": "Отбасы балансы",
+  "familyRare": "Сирек режимін қосу және жалғастыру",
+  "familyGift": "{name} үшін сыйлық",
+  "familyProfile": "Профиль"
+}

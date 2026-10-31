@@ -9,6 +9,7 @@ from .. import icu
 from ..arb import ArbFile
 from ..model import Finding
 from ..profiles import Profile
+from ..profiles import get as profiles_get
 
 WORD = re.compile(r"[^\W\d_]+", re.U)
 CYR = re.compile(r"[А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]")
@@ -118,7 +119,8 @@ def check_wrong_language(ctx: Context):
             continue
         if icu.tokens(src) != icu.tokens(tgt):
             continue  # `{name}` that lost its braces looks like Latin text; placeholder check owns this case
-        full_match_ref = any(r.strings.get(k) == tgt for r in ctx.refs.values())
+        full_match_ref = any(r.strings.get(k) == tgt for c, r in ctx.refs.items()
+                             if profiles_get(c).script != ctx.profile.script)
         if not full_match_ref:
             # Latin words that also appear in a reference translation are brand names (MIDAS CREW, HUD)
             ref_words = {w.lower() for r in ctx.refs.values() for w in WORD.findall(r.strings.get(k, ""))}
@@ -129,14 +131,20 @@ def check_wrong_language(ctx: Context):
             src_lat = len(LAT.findall(_strip_markup(src)))
             if lat >= 6 and lat > cyr and lat > src_lat * 1.5:
                 evidence.append(f"{lat} латинских букв против {cyr} кириллических, в исходнике латиницы {src_lat}")
+        # words mixing both scripts («Arenaдан») are orthography, not another language
+        marker_text = " ".join(w for w in WORD.findall(text) if not (LAT.search(w) and CYR.search(w)))
         for pattern, lang in ctx.profile.foreign_markers.items():
-            if re.search(pattern, text, re.I) and lang != ctx.profile.code:
+            if re.search(pattern, marker_text, re.I) and lang != ctx.profile.code:
                 if ctx.profile.script == "cyrl" and not LAT.search(text) and lang != "uz":
                     continue
-                evidence.append(f"маркер языка {lang}: «{re.search(pattern, text, re.I).group(0)}»")
+                evidence.append(f"маркер языка {lang}: «{re.search(pattern, marker_text, re.I).group(0)}»")
                 break
         for code, ref in ctx.refs.items():
-            if ref.strings.get(k) == tgt and WORD.search(text) and len(text.strip()) > 3:
+            # matching a reference only proves a wrong language if that reference uses another script
+            # (kk == uz Latin text is evidence; uz == en «Golem» is just a shared Latin word)
+            if profiles_get(code).script == ctx.profile.script:
+                continue
+            if ref.strings.get(k) == tgt and WORD.search(text) and len(text.strip()) > 3 and _foreign_script(text, ctx.profile):
                 evidence.append(f"дословно совпадает с файлом {code}")
         if ctx.profile.script == "cyrl" and len(evidence) < 2 and not (LAT.search(text) and len(LAT.findall(text)) > len(CYR.findall(text))):
             continue
@@ -155,9 +163,15 @@ def check_wrong_language(ctx: Context):
                       None, min(0.98, 0.7 + 0.12 * len(evidence)), detector="rules.wrong_language")
 
 
+def _foreign_script(text: str, profile: Profile) -> bool:
+    lat, cyr = len(LAT.findall(text)), len(CYR.findall(text))
+    return lat > cyr if profile.script == "cyrl" else cyr > lat
+
+
 def check_orthography(ctx: Context):
     p = ctx.profile
     if not p.look_alikes:
+        yield from _mixed_script_only(ctx)
         return
     fold = str.maketrans(p.look_alikes)
     freq: Counter = Counter()
@@ -188,6 +202,15 @@ def check_orthography(ctx: Context):
         if notes:
             yield Finding(k, "orthography", "medium", ctx.source.strings.get(k, ""), tgt, "; ".join(notes),
                           suggestion if suggestion != tgt else None, 0.85, detector="rules.orthography")
+
+
+def _mixed_script_only(ctx: Context):
+    for k, tgt in ctx.target.strings.items():
+        bad = [w for w in WORD.findall(tgt) if LAT.search(w) and CYR.search(w)]
+        if bad:
+            yield Finding(k, "orthography", "medium", ctx.source.strings.get(k, ""), tgt,
+                          "Кириллица и латиница смешаны внутри слова: " + ", ".join(f"«{w}»" for w in bad),
+                          None, 0.85, detector="rules.orthography")
 
 
 def _match_case(orig: str, word: str) -> str:
